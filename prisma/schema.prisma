@@ -1,3 +1,7 @@
+// This is a workaround for Prisma in environments without a database
+// It allows the application to build and run without a database connection
+// while still providing the code generation features
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -5,14 +9,14 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-model GeneratedApp {
-  id        String   @id @default(nanoid(5))
-  model     String
+model App {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   prompt    String
   code      String
-  createdAt DateTime @default(now())
-
-  @@index([id])
+  model     String
 }

@@ -12,6 +12,7 @@ This project is a fork of [InstantCoder](https://github.com/osanseviero/InstantC
 - **Beginner-Friendly Interface**: Simple UI for managing MCP connections
 - **Real-time Code Generation**: Stream code generation results as they're created
 - **Interactive Sandbox**: Test generated code immediately in a Sandpack environment
+- **Docker Support**: Easy deployment to cloud services like Railway
 
 ## What is MCP?
 
@@ -24,12 +25,52 @@ The Model Context Protocol (MCP) is an open protocol that standardizes how appli
 - [Zustand](https://github.com/pmndrs/zustand) for state management
 - [Sandpack](https://sandpack.codesandbox.io/) for the code sandbox
 - Next.js app router with Tailwind
+- Docker for containerization and deployment
 
 ## Cloning & running
+
+### Local Development
 
 1. Clone the repo: `git clone https://github.com/vredrick2/InstantCoder-MCP`
 2. Create a `.env` file and add your [Google AI Studio API key](https://aistudio.google.com/app/apikey): `GOOGLE_AI_API_KEY=`
 3. Run `npm install` and `npm run dev` to install dependencies and run locally
+
+### Using Docker
+
+#### Prerequisites
+- Docker and Docker Compose installed on your machine
+
+#### Running with Docker Compose
+1. Clone the repo: `git clone https://github.com/vredrick2/InstantCoder-MCP`
+2. Create a `.env` file with your Google AI API key: `GOOGLE_AI_API_KEY=your_api_key_here`
+3. Build and start the container:
+   ```bash
+   docker-compose up -d
+   ```
+4. Access the application at http://localhost:3000
+
+#### Building and Running the Docker Image Directly
+1. Build the Docker image:
+   ```bash
+   docker build -t instantcoder-mcp .
+   ```
+2. Run the container:
+   ```bash
+   docker run -p 3000:3000 -e GOOGLE_AI_API_KEY=your_api_key_here instantcoder-mcp
+   ```
+3. Access the application at http://localhost:3000
+
+## Deploying to Railway
+
+Railway is a platform that makes it easy to deploy applications with minimal configuration.
+
+1. Fork this repository to your GitHub account
+2. Sign up for [Railway](https://railway.app/)
+3. Create a new project and select "Deploy from GitHub repo"
+4. Connect your GitHub account and select the InstantCoder-MCP repository
+5. Add the environment variable `GOOGLE_AI_API_KEY` with your Google AI API key
+6. Railway will automatically detect the Dockerfile and deploy your application
+7. Once deployed, Railway will provide you with a public URL to access your application
 
 ## Using MCP Servers
 
