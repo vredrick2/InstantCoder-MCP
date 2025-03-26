@@ -10,6 +10,7 @@ import * as Switch from "@radix-ui/react-switch";
 import { AnimatePresence, motion } from "framer-motion";
 import { FormEvent, useEffect, useState } from "react";
 import LoadingDots from "../../components/loading-dots";
+import { MCPIntegration } from "@/components/mcp/MCPIntegration";
 
 function removeCodeFormatting(code: string): string {
   return code.replace(/```(?:typescript|javascript|tsx)?\n([\s\S]*?)```/g, '$1').trim();
@@ -44,6 +45,11 @@ export default function Home() {
   let [messages, setMessages] = useState<{ role: string; content: string }[]>(
     [],
   );
+  
+  // MCP integration state
+  let [sourceType, setSourceType] = useState<"gemini" | "mcp">("gemini");
+  let [mcpConnected, setMcpConnected] = useState(false);
+  let [mcpServerUrl, setMcpServerUrl] = useState<string | null>(null);
 
   let loading = status === "creating" || status === "updating";
 
@@ -57,42 +63,74 @@ export default function Home() {
     setStatus("creating");
     setGeneratedCode("");
 
-    let res = await fetch("/api/generateCode", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-
-    if (!res.ok) {
-      throw new Error(res.statusText);
-    }
-
-    if (!res.body) {
-      throw new Error("No response body");
-    }
-
-    const reader = res.body.getReader();
-    let receivedData = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
+    try {
+      let res;
+      
+      if (sourceType === "gemini") {
+        // Existing Gemini API call
+        res = await fetch("/api/generateCode", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: "user", content: prompt }],
+          }),
+        });
+      } else if (sourceType === "mcp" && mcpServerUrl) {
+        // MCP API call
+        res = await fetch("/api/mcpGenerateCode", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            serverUrl: mcpServerUrl,
+            prompt,
+          }),
+        });
+      } else {
+        throw new Error("Invalid source type or missing MCP server URL");
       }
-      receivedData += new TextDecoder().decode(value);
-      const cleanedData = removeCodeFormatting(receivedData);
-      setGeneratedCode(cleanedData);
-    }
 
-    setMessages([{ role: "user", content: prompt }]);
-    setInitialAppConfig({ model });
-    setStatus("created");
+      if (!res.ok) {
+        throw new Error(res.statusText);
+      }
+
+      if (!res.body) {
+        throw new Error("No response body");
+      }
+
+      const reader = res.body.getReader();
+      let receivedData = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        receivedData += new TextDecoder().decode(value);
+        const cleanedData = removeCodeFormatting(receivedData);
+        setGeneratedCode(cleanedData);
+      }
+
+      setMessages([{ role: "user", content: prompt }]);
+      setInitialAppConfig({ model });
+      setStatus("created");
+    } catch (error) {
+      console.error("Error generating code:", error);
+      setStatus("initial");
+      // Show error to user
+      alert(`Error generating code: ${error}`);
+    }
   }
+  
+  // Handle MCP server connection status change
+  const handleMcpServerConnect = (connected: boolean, serverUrl?: string) => {
+    setMcpConnected(connected);
+    setMcpServerUrl(serverUrl || null);
+  };
 
   useEffect(() => {
     let el = document.querySelector(".cm-scroller");
@@ -110,16 +148,94 @@ export default function Home() {
         target="_blank"
       >
         <span className="text-center">
-          Powered by <span className="font-medium">Gemini API</span>
+          Powered by <span className="font-medium">Gemini API & MCP</span>
         </span>
       </a>
       <h1 className="my-6 max-w-3xl text-4xl font-bold text-gray-800 dark:text-white sm:text-6xl">
         Turn your <span className="text-blue-600">idea</span>
         <br /> into an <span className="text-blue-600">app</span>
       </h1>
+      
+      <div className="mb-6 flex flex-col sm:flex-row items-center gap-4">
+        <div className="flex items-center space-x-2">
+          <button
+            className={`px-4 py-2 rounded-l-md ${
+              sourceType === "gemini" 
+                ? "bg-blue-600 text-white" 
+                : "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+            }`}
+            onClick={() => setSourceType("gemini")}
+          >
+            Gemini API
+          </button>
+          <button
+            className={`px-4 py-2 rounded-r-md ${
+              sourceType === "mcp" 
+                ? "bg-blue-600 text-white" 
+                : "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+            }`}
+            onClick={() => setSourceType("mcp")}
+          >
+            MCP Server
+          </button>
+        </div>
+      </div>
 
       <form className="w-full max-w-xl" onSubmit={createApp}>
         <fieldset disabled={loading} className="disabled:opacity-75">
+          {sourceType === "gemini" ? (
+            // Existing Gemini model selector
+            <div className="mt-6 flex flex-col justify-center gap-4 sm:flex-row sm:items-center sm:gap-8">
+              <div className="flex items-center justify-between gap-3 sm:justify-center">
+                <p className="text-gray-500 dark:text-gray-400 sm:text-xs">Model:</p>
+                <Select.Root
+                  name="model"
+                  disabled={loading}
+                  value={model}
+                  onValueChange={(value) => setModel(value)}
+                >
+                  <Select.Trigger className="group flex w-60 max-w-xs items-center rounded-2xl border-[6px] border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1E293B] px-4 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">
+                    <Select.Value />
+                    <Select.Icon className="ml-auto">
+                      <ChevronDownIcon className="size-6 text-gray-300 group-focus-visible:text-gray-500 group-enabled:group-hover:text-gray-500 dark:text-gray-600 dark:group-focus-visible:text-gray-400 dark:group-enabled:group-hover:text-gray-400" />
+                    </Select.Icon>
+                  </Select.Trigger>
+                  <Select.Portal>
+                    <Select.Content className="overflow-hidden rounded-md bg-white dark:bg-[#1E293B] shadow-lg">
+                      <Select.Viewport className="p-2">
+                        {models.map((model) => (
+                          <Select.Item
+                            key={model.value}
+                            value={model.value}
+                            className="flex cursor-pointer items-center rounded-md px-3 py-2 text-sm data-[highlighted]:bg-gray-100 dark:data-[highlighted]:bg-gray-800 data-[highlighted]:outline-none"
+                          >
+                            <Select.ItemText asChild>
+                              <span className="inline-flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                                <div className="size-2 rounded-full bg-green-500" />
+                                {model.label}
+                              </span>
+                            </Select.ItemText>
+                            <Select.ItemIndicator className="ml-auto">
+                              <CheckIcon className="size-5 text-blue-600" />
+                            </Select.ItemIndicator>
+                          </Select.Item>
+                        ))}
+                      </Select.Viewport>
+                      <Select.ScrollDownButton />
+                      <Select.Arrow />
+                    </Select.Content>
+                  </Select.Portal>
+                </Select.Root>
+              </div>
+            </div>
+          ) : (
+            // MCP server integration
+            <div className="mt-6 mb-4">
+              <MCPIntegration onServerConnect={handleMcpServerConnect} />
+            </div>
+          )}
+          
+          {/* Prompt input - same for both sources */}
           <div className="relative mt-5">
             <div className="absolute -inset-2 rounded-[32px] bg-gray-300/50 dark:bg-gray-800/50" />
             <div className="relative flex rounded-3xl bg-white dark:bg-[#1E293B] shadow-sm">
@@ -132,11 +248,12 @@ export default function Home() {
                   name="prompt"
                   className="w-full resize-none rounded-l-3xl bg-transparent px-6 py-5 text-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 dark:text-gray-100 dark:placeholder-gray-400"
                   placeholder="Build me a calculator app..."
+                  disabled={sourceType === "mcp" && !mcpConnected}
                 />
               </div>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || (sourceType === "mcp" && !mcpConnected)}
                 className="relative -ml-px inline-flex items-center gap-x-1.5 rounded-r-3xl px-3 py-2 text-sm font-semibold text-blue-500 hover:text-blue-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 disabled:text-gray-900 dark:disabled:text-gray-400"
               >
                 {status === "creating" ? (
@@ -145,49 +262,6 @@ export default function Home() {
                   <ArrowLongRightIcon className="-ml-0.5 size-6" />
                 )}
               </button>
-            </div>
-          </div>
-          <div className="mt-6 flex flex-col justify-center gap-4 sm:flex-row sm:items-center sm:gap-8">
-            <div className="flex items-center justify-between gap-3 sm:justify-center">
-              <p className="text-gray-500 dark:text-gray-400 sm:text-xs">Model:</p>
-              <Select.Root
-                name="model"
-                disabled={loading}
-                value={model}
-                onValueChange={(value) => setModel(value)}
-              >
-                <Select.Trigger className="group flex w-60 max-w-xs items-center rounded-2xl border-[6px] border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1E293B] px-4 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">
-                  <Select.Value />
-                  <Select.Icon className="ml-auto">
-                    <ChevronDownIcon className="size-6 text-gray-300 group-focus-visible:text-gray-500 group-enabled:group-hover:text-gray-500 dark:text-gray-600 dark:group-focus-visible:text-gray-400 dark:group-enabled:group-hover:text-gray-400" />
-                  </Select.Icon>
-                </Select.Trigger>
-                <Select.Portal>
-                  <Select.Content className="overflow-hidden rounded-md bg-white dark:bg-[#1E293B] shadow-lg">
-                    <Select.Viewport className="p-2">
-                      {models.map((model) => (
-                        <Select.Item
-                          key={model.value}
-                          value={model.value}
-                          className="flex cursor-pointer items-center rounded-md px-3 py-2 text-sm data-[highlighted]:bg-gray-100 dark:data-[highlighted]:bg-gray-800 data-[highlighted]:outline-none"
-                        >
-                          <Select.ItemText asChild>
-                            <span className="inline-flex items-center gap-2 text-gray-500 dark:text-gray-400">
-                              <div className="size-2 rounded-full bg-green-500" />
-                              {model.label}
-                            </span>
-                          </Select.ItemText>
-                          <Select.ItemIndicator className="ml-auto">
-                            <CheckIcon className="size-5 text-blue-600" />
-                          </Select.ItemIndicator>
-                        </Select.Item>
-                      ))}
-                    </Select.Viewport>
-                    <Select.ScrollDownButton />
-                    <Select.Arrow />
-                  </Select.Content>
-                </Select.Portal>
-              </Select.Root>
             </div>
           </div>
         </fieldset>
