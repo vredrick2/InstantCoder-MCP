@@ -72,6 +72,30 @@ Railway is a platform that makes it easy to deploy applications with minimal con
 6. Railway will automatically detect the Dockerfile and deploy your application
 7. Once deployed, Railway will provide you with a public URL to access your application
 
+### Railway Deployment Notes
+
+This project includes specific optimizations for Railway deployment:
+
+1. **Database Configuration**: The Prisma setup is configured to work without requiring a database during the build process, which prevents build failures in Railway.
+
+2. **Build Process**: The build script has been modified to separate Prisma client generation from database migrations, allowing successful builds even without a configured database.
+
+3. **Environment Variables**:
+   - `GOOGLE_AI_API_KEY` (required): Your Google AI API key for Gemini
+   - `DATABASE_URL` (optional): If you add a PostgreSQL service in Railway, this will be automatically set
+
+4. **Adding a Database (Optional)**:
+   - To enable saving generated apps, add a PostgreSQL service in Railway
+   - Railway will automatically connect the database to your application
+   - The first time you deploy with a database, you may need to run migrations manually:
+     ```bash
+     railway run npm run migrate
+     ```
+
+5. **Troubleshooting**:
+   - If you encounter build issues, check that your `GOOGLE_AI_API_KEY` is correctly set
+   - For database-related errors, verify that your PostgreSQL service is properly provisioned
+
 ## Using MCP Servers
 
 1. Click the "MCP Server" option in the main interface
