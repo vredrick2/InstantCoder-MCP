@@ -19,6 +19,14 @@ COPY . .
 # Set environment variables
 ENV NEXT_TELEMETRY_DISABLED 1
 
+# Create a dummy DATABASE_URL for Prisma to generate the client without connecting to a database
+# This allows the build to succeed even without a real database connection
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy?schema=public"
+ENV DIRECT_URL="postgresql://dummy:dummy@localhost:5432/dummy?schema=public"
+
+# Generate Prisma client without running migrations
+RUN npx prisma generate
+
 # Build the application
 RUN npm run build
 

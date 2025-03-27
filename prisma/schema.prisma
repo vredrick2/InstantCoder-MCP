@@ -4,12 +4,14 @@
 
 generator client {
   provider = "prisma-client-js"
+  // Make Prisma Client generate code that can be used in Edge runtimes
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  // Remove directUrl completely to avoid the validation error
 }
 
 model App {
